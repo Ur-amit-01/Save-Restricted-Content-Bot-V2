@@ -44,7 +44,7 @@ async def process_and_upload_link(userbot, user_id, msg_id, link, retry_count, m
             await app.delete_messages(user_id, msg_id)
         except Exception:
             pass
-        await asyncio.sleep(15)
+        await asyncio.sleep(8)
     finally:
         pass
 
@@ -204,19 +204,38 @@ async def batch_link(_, message):
         await app.send_message(message.chat.id, "Maximum attempts exceeded. Try later.")
         return
 
-    # Number of messages input
+    # End link input
     for attempt in range(3):
-        num_messages = await app.ask(message.chat.id, f"How many messages do you want to process?\n> Max limit {max_batch_size}")
-        try:
-            cl = int(num_messages.text.strip())
-            if 1 <= cl <= max_batch_size:
-                break
-            raise ValueError()
-        except ValueError:
+        end = await app.ask(message.chat.id, "Please send the final (end) link.\n\n> Maximum tries 3")
+        end_id = end.text.strip()
+        e = end_id.split("/")[-1]
+
+        if not e.isdigit():
+            await app.send_message(message.chat.id, "Invalid link. Please send again ...")
+            continue
+
+        ce = int(e)
+
+        # Basic sanity: end must be same chat/prefix and >= start
+        start_prefix = "/".join(start_id.split("/")[:-1])
+        end_prefix = "/".join(end_id.split("/")[:-1])
+        if start_prefix != end_prefix:
+            await app.send_message(message.chat.id, "Start and end links must be from the same chat. Please send again ...")
+            continue
+
+        if ce < cs:
+            await app.send_message(message.chat.id, "End link must come after the start link. Please send again ...")
+            continue
+
+        cl = ce - cs + 1
+        if cl > max_batch_size:
             await app.send_message(
-                message.chat.id, 
-                f"Invalid number. Please enter a number between 1 and {max_batch_size}."
+                message.chat.id,
+                f"Range too large ({cl} messages). Max limit is {max_batch_size}. Please send a smaller range ..."
             )
+            continue
+
+        break
     else:
         await app.send_message(message.chat.id, "Maximum attempts exceeded. Try later.")
         return
@@ -313,3 +332,4 @@ async def stop_batch(_, message):
             message.chat.id, 
             "No active batch processing is running to cancel."
         )
+        
